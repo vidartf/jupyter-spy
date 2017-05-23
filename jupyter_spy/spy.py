@@ -47,8 +47,9 @@ class Spy:
         """
         if isinstance(info, dict):
             self.client.load_connection_info(info)
-        path = jupyter_client.find_connection_file(info)
-        self.client.load_connection_file(path)
+        else:
+            path = jupyter_client.find_connection_file(info)
+            self.client.load_connection_file(path)
 
     def log_all(self, output=sys.stdout):
         raise NotImplementedError('Not implemented yet!')
