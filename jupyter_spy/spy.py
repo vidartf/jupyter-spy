@@ -1,18 +1,19 @@
 
 import sys
-import json
 import queue
-import functools
 
 import jupyter_client
 from zmq.utils import jsonapi
 
 
-def filter_comms(message):
+def is_comms(message):
     return message['header']['msg_type'] in ('comm_open', 'comm_msg', 'comm_close')
 
-def filter_comms_ids(ids, message):
-    return filter_comms(message) and (ids is None or message['content']['comm_id'] in ids)
+def is_comms_ids(ids, message):
+    return ids is None or message['content']['comm_id'] in ids
+
+def is_not_status(message):
+    return message['msg_type'] != 'status'
 
 def json_packer(obj):
     return jsonapi.dumps(obj, default=jupyter_client.session.date_default,
@@ -85,7 +86,7 @@ class Spy:
             self._first = False
         print('\n]' if pretty else ']', file=output)
 
-    def log_iopub(self, output=sys.stdout, pretty=None):
+    def log_iopub(self, output=sys.stdout, pretty=None, filter_function=None):
         """Log all messages on the IOPUB channel.
 
         Parameters
@@ -97,10 +98,14 @@ class Spy:
             Whether to use pretty logging (line-endings and indentation).
             If None (default), it will only use pretty print if `output` is
             equal to stdout.
-        """
-        return self._log_X(self.client.iopub_channel, output, pretty)
 
-    def log_shell(self, output=sys.stdout, pretty=None):
+        filter_function: callable
+            If given, it will be used to filter messages
+
+        """
+        return self._log_X(self.client.iopub_channel, output, pretty, filter_function)
+
+    def log_shell(self, output=sys.stdout, pretty=None, filter_function=None):
         """Log all messages on the SHELL channel.
 
         Parameters
@@ -112,10 +117,13 @@ class Spy:
             Whether to use pretty logging (line-endings and indentation).
             If None (default), it will only use pretty print if `output` is
             equal to stdout.
-        """
-        return self._log_X(self.client.shell_channel, output, pretty)
 
-    def log_stdin(self, output=sys.stdout, pretty=None):
+        filter_function: callable
+            If given, it will be used to filter messages
+        """
+        return self._log_X(self.client.shell_channel, output, pretty, filter_function)
+
+    def log_stdin(self, output=sys.stdout, pretty=None, filter_function=None):
         """Log all messages on the STDIN channel.
 
         Parameters
@@ -127,16 +135,17 @@ class Spy:
             Whether to use pretty logging (line-endings and indentation).
             If None (default), it will only use pretty print if `output` is
             equal to stdout.
-        """
-        return self._log_X(self.client.stdin_channel, output, pretty)
 
-    def log_comms(self, only_id=None, output=sys.stdout, pretty=None):
+        filter_function: callable
+            If given, it will be used to filter messages
+        """
+        return self._log_X(self.client.stdin_channel, output, pretty, filter_function)
+
+    def log_comms(self, output=sys.stdout, pretty=None, filter_function=None):
         """Log Comm messages.
 
         Parameters
         ----------
-        only_id: string | string[]
-            A Comm ID, or sequence of IDs to filter for.
 
         output : file
             A file-like object to log the messages to. Defaults to stdout.
@@ -145,12 +154,17 @@ class Spy:
             Whether to use pretty logging (line-endings and indentation).
             If None (default), it will only use pretty print if `output` is
             equal to stdout.
+
+        filter_function: callable
+            If given, it will be used to filter messages
         """
-        if isinstance(only_id, str):
-            only_id = [only_id]
         if pretty is None:
             pretty = output == sys.stdout
+        if filter_function is None:
+            filter_function = is_comms
+        else:
+            filter_function = lambda msg: is_comms(msg) and filter_function(msg)
 
         self._log_X(self.client.iopub_channel, output, pretty,
-                    functools.partial(filter_comms_ids, only_id))
+                    lambda msg: filter_function)
 
