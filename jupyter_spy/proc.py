@@ -69,6 +69,7 @@ class Processor:
             self._content = json.load(f)
         self._map = None
         self._tree = None
+        self._order_lut = None
 
     def free_caches(self):
         """Clears the internal caches used by certain properties
@@ -79,6 +80,7 @@ class Processor:
         """
         self._map = None
         self._tree = None
+        self._order_lut = None
 
     @property
     def entries(self):
@@ -149,3 +151,16 @@ class Processor:
         for entry in self.entries:
             types[entry['msg_type']] += 1
         return dict(types)
+
+    @property
+    def message_index_lut(self):
+        """A map for looking up a message's entry index by its ID.
+
+        The map is cached to avoid recalculation,
+        which means the returned map should not be modified.
+        """
+        if self._order_lut is None:
+            self._order_lut = {}
+            for index, entry in enumerate(self.entries):
+                self._order_lut[entry['msg_id']] = index
+        return self._order_lut
