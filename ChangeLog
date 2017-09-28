@@ -1,6 +1,10 @@
 CHANGES
 =======
 
+1.0.0
+-----
+
+* PBR autogen
 * Add id -> entry index LUT
 * Add methods to hook a current session
 * Add flag for filtering status messages
