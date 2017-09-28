@@ -17,12 +17,20 @@ def is_not_status(message):
 
 def json_packer(obj):
     return jsonapi.dumps(obj, default=jupyter_client.session.date_default,
-                  ensure_ascii=False, allow_nan=False).decode('utf-8')
+                         ensure_ascii=False, allow_nan=False).decode('utf-8')
 
 def json_packer_pretty(obj):
     return jsonapi.dumps(obj, default=jupyter_client.session.date_default,
-                  ensure_ascii=False, allow_nan=False, indent='  ').decode('utf-8')
+                         ensure_ascii=False, allow_nan=False, indent='  ').decode('utf-8')
 
+
+
+def _json_dump(message, output, pretty, first):
+    packer = json_packer_pretty if pretty else json_packer
+    s = packer(message)
+    if not first:
+        s = ',\n' + s
+    print(s, file=output, end='')
 
 class Spy:
     """Listener/logger for Jupyter messages."""
@@ -34,7 +42,6 @@ class Spy:
         `connect` method.
         """
         self.client = jupyter_client.BlockingKernelClient()
-        self._first = False
         if info is not None:
             self.connect(info)
 
@@ -66,24 +73,17 @@ class Spy:
         except KeyboardInterrupt:
             pass
 
-    def _json_dump(self, message, output, pretty):
-        packer = json_packer_pretty if pretty else json_packer
-        s = packer(message)
-        if not self._first:
-            s = ',\n' + s
-        print(s, file=output, end='')
-
     def _log_X(self, channel, output, pretty, filter_function=None):
         if pretty is None:
             pretty = output == sys.stdout
         print('[', end=('\n' if pretty else ''), file=output)
-        self._first = True
+        first = True
         it = self._gen_messages(channel)
         if filter_function:
             it = filter(filter_function, it)
         for message in it:
-            self._json_dump(message, output, pretty)
-            self._first = False
+            _json_dump(message, output, pretty, first)
+            first = False
         print('\n]' if pretty else ']', file=output)
 
     def log_iopub(self, output=sys.stdout, pretty=None, filter_function=None):
@@ -141,7 +141,7 @@ class Spy:
         """
         return self._log_X(self.client.stdin_channel, output, pretty, filter_function)
 
-    def log_comms(self, output=sys.stdout, pretty=None, filter_function=None):
+    def log_comms(self, output=None, pretty=None, filter_function=None):
         """Log Comm messages.
 
         Parameters
@@ -158,6 +158,8 @@ class Spy:
         filter_function: callable
             If given, it will be used to filter messages
         """
+        if output is None:
+            output = sys.stdout
         if pretty is None:
             pretty = output == sys.stdout
         if filter_function is None:
