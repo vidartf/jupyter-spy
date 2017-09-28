@@ -5,6 +5,8 @@ import queue
 import jupyter_client
 from zmq.utils import jsonapi
 
+from .session_hook import hook_recv, hook_send, unhook_send, unhook_recv
+
 
 def is_comms(message):
     return message['header']['msg_type'] in ('comm_open', 'comm_msg', 'comm_close')
@@ -58,6 +60,69 @@ class Spy:
         else:
             path = jupyter_client.find_connection_file(info)
             self.client.load_connection_file(path)
+
+    def hook(self, pretty=None, output=None, filter_function=None):
+        """Hook the current IPython kernel for logging Comm messages.
+
+        Parameters
+        ----------
+
+        output : file
+            A file-like object to log the messages to. Defaults to stdout.
+
+        pretty: bool | None
+            Whether to use pretty logging (line-endings and indentation).
+            If None (default), it will only use pretty print if `output` is
+            equal to stdout.
+
+        filter_function: callable
+            If given, it will be used to filter messages
+        """
+        if output is None:
+            output = sys.stdout
+        if pretty is None:
+            pretty = output == sys.stdout
+        print('[', end=('\n' if pretty else ''), file=output)
+        first = True
+        def callback(message):
+            nonlocal first
+            if filter_function and not filter_function(message):
+                return
+            _json_dump(message, output, pretty, first)
+            first = False
+
+        def finish():
+            print('\n]' if pretty else ']', file=output)
+            unhook_send(callback)
+            unhook_recv(callback)
+
+        hook_send(callback)
+        hook_recv(callback)
+        return finish
+
+    def hook_comms(self, pretty=None, output=None, filter_function=None):
+        """Hook the current IPython kernel for logging.
+
+        Parameters
+        ----------
+
+        output : file
+            A file-like object to log the messages to. Defaults to stdout.
+
+        pretty: bool | None
+            Whether to use pretty logging (line-endings and indentation).
+            If None (default), it will only use pretty print if `output` is
+            equal to stdout.
+
+        filter_function: callable
+            If given, it will be used to filter messages
+        """
+        if filter_function is None:
+            filter_function = is_comms
+        else:
+            filter_function = lambda msg: is_comms(msg) and filter_function(msg)
+        return self.hook(pretty, output, filter_function)
+
 
     def log_all(self, output=sys.stdout):
         raise NotImplementedError('Not implemented yet!')
@@ -169,4 +234,3 @@ class Spy:
 
         self._log_X(self.client.iopub_channel, output, pretty,
                     lambda msg: filter_function)
-
