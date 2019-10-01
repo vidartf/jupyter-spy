@@ -26,7 +26,7 @@ def _hooked_recv(*args, **kwargs):
 
 
 def hook_send(callback):
-    nonlocal _original_send
+    global _original_send
     session = _get_session()
     if _original_send is None:
         _original_send = session.send
@@ -34,7 +34,7 @@ def hook_send(callback):
     _send_callbacks.add(callback)
 
 def hook_recv(callback):
-    nonlocal _original_recv
+    global _original_recv
     session = _get_session()
     if _original_recv is None:
         _original_recv = session.recv
@@ -47,7 +47,7 @@ def unhook_send(callback):
         return
     _send_callbacks.remove(callback)
     if not _send_callbacks:
-        nonlocal _original_send
+        global _original_send
         session = _get_session()
         session.send = _original_send
         _original_send = None
@@ -57,7 +57,7 @@ def unhook_recv(callback):
         return
     _recv_callbacks.remove(callback)
     if not _recv_callbacks:
-        nonlocal _original_recv
+        global _original_recv
         session = _get_session()
         session.recv = _original_recv
         _original_recv = None
